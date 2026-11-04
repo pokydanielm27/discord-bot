@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>discord-bot &middot; status</title>
+    <style>
+      :root {
+        --bg: #1e1f22;
+        --card: #2b2d31;
+        --line: #3f4147;
+        --ink: #f2f3f5;
+        --muted: #a9adb4;
+        --blurple: #5865f2;
+        --ok: #3ba55d;
+        --warn: #f0b232;
+        --bad: #ed4245;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 32px;
+        background: radial-gradient(1200px 600px at 50% -10%, #353b6b 0%, var(--bg) 60%);
+        color: var(--ink);
+        font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      main { width: 100%; max-width: 620px; }
+      header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+      .mark {
+        width: 46px;
+        height: 46px;
+        flex: none;
+        border-radius: 14px;
+        background: var(--blurple);
+        display: grid;
+        place-items: center;
+        font-size: 22px;
+        font-weight: 700;
+        box-shadow: 0 8px 24px rgba(88, 101, 242, 0.45);
+      }
+      h1 { margin: 0; font-size: 21px; letter-spacing: -0.01em; }
+      header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      .row { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; }
+      .row + .row { border-top: 1px solid var(--line); }
+      .dot {
+        flex: none;
+        width: 10px;
+        height: 10px;
+        margin-top: 6px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .dot.ok { background: var(--ok); }
+      .dot.warn { background: var(--warn); }
+      .dot.bad { background: var(--bad); }
+      .row h2 { margin: 0; font-size: 14px; font-weight: 600; }
+      .row p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+      .value {
+        margin-left: auto;
+        max-width: 55%;
+        font-size: 13px;
+        text-align: right;
+        color: var(--muted);
+      }
+      footer { margin-top: 16px; font-size: 12px; text-align: center; color: #8b8f97; }
+      code {
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.07);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="mark">d</div>
+        <div>
+          <h1>discord-bot</h1>
+          <p>discord.js bot &middot; live status</p>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="row">
+          <span class="dot warn" id="bot-dot"></span>
+          <div>
+            <h2>Discord connection</h2>
+            <p id="bot-detail">Signing in with the token stored in this app's secrets.</p>
+          </div>
+          <span class="value" id="bot-value">Connecting&hellip;</span>
+        </div>
+
+        <div class="row">
+          <span class="dot" id="runtime-dot"></span>
+          <div>
+            <h2>Bot runtime</h2>
+            <p>Servers, websocket latency, uptime and registered slash commands.</p>
+          </div>
+          <span class="value" id="runtime-value">&mdash;</span>
+        </div>
+
+        <div class="row">
+          <span class="dot ok"></span>
+          <div>
+            <h2>Status page</h2>
+            <p>Served on port 3000 by the bot process itself.</p>
+          </div>
+          <span class="value">Online</span>
+        </div>
+      </section>
+
+      <footer>Commands: <code>/ping</code> <code>/status</code></footer>
+    </main>
+
+    <script>
+      function humanDuration(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        if (hours) return hours + 'h ' + minutes + 'm';
+        if (minutes) return minutes + 'm ' + (seconds % 60) + 's';
+        return seconds + 's';
+      }
+
+      function render(bot) {
+        const dot = document.getElementById('bot-dot');
+        const value = document.getElementById('bot-value');
+        const detail = document.getElementById('bot-detail');
+        const runtimeDot = document.getElementById('runtime-dot');
+        const runtime = document.getElementById('runtime-value');
+
+        const tone = { ok: 'ok', waiting: 'warn', error: 'bad' }[bot.state] || '';
+        dot.className = 'dot ' + tone;
+        value.textContent = bot.label;
+
+        if (bot.state !== 'ok') {
+          detail.textContent = 'The bot is not signed in to Discord yet.';
+          runtimeDot.className = 'dot warn';
+          runtime.textContent = 'Waiting for login';
+          return;
+        }
+
+        detail.textContent = 'Signed in as ' + bot.tag + ' (id ' + bot.id + ').';
+        runtimeDot.className = 'dot ok';
+        runtime.textContent =
+          bot.guilds + ' server(s) \u00b7 ' + bot.ping + 'ms \u00b7 up ' +
+          humanDuration(bot.uptime) + ' \u00b7 ' + bot.commands + ' command(s)';
+      }
+
+      function refresh() {
+        fetch('/api/status')
+          .then((res) => res.json())
+          .then(({ bot }) => render(bot))
+          .catch(() => {
+            document.getElementById('bot-dot').className = 'dot bad';
+            document.getElementById('bot-value').textContent = 'Status unavailable';
+          });
+      }
+
+      refresh();
+      setInterval(refresh, 10000);
+    </script>
+  </body>
+</html>
